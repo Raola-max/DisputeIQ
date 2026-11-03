@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, HTTPException
 from paypal_client import get_access_token, paypal_get
 from ai_agent import analyze_dispute
 import database
@@ -35,7 +35,13 @@ async def paypal_webhook(request: Request):
         print(f"Fetching dispute details for: {dispute_id}")
         
         try:
-            dispute_data = await paypal_get(f"/v1/customer/disputes/{dispute_id}")
+            
+            if "PP-000" in dispute_id:
+                dispute_data = resource
+                print("Mock ID detected. Using raw webhook data.")
+            else:
+                dispute_data = await paypal_get(f"/v1/customer/disputes/{dispute_id}")
+            
             order_data = {}
             
             print("Sending data to Gemini AI...")
@@ -52,6 +58,27 @@ async def paypal_webhook(request: Request):
             print(f"Error processing dispute: {str(e)}")
 
     return {"received": True}
+
+@app.get("/disputes")
+async def get_all_disputes():
+    """Fetch all disputes for the Streamlit frontend."""
+    disputes = database.get_disputes()
+    result = []
+    if disputes:
+        for d in disputes:
+            result.append({
+                "id": d[0],
+                "data": json.loads(d[1]),
+                "ai_recommendation": d[2],
+                "status": d[3]
+            })
+    return result
+
+@app.post("/resolve/{dispute_id}")
+async def resolve_dispute(dispute_id: str):
+    """Mark a dispute as resolved."""
+    database.update_status(dispute_id, "RESOLVED")
+    return {"status": "success", "message": f"Dispute {dispute_id} resolved."}
 
 @app.get("/seed")
 async def seed_data():
@@ -77,6 +104,6 @@ async def seed_data():
         ai_recommendation = analyze_dispute(fake_dispute_data, {"status": "SHIPPED", "tracking": "1Z999AA10123456784"})
         
         database.save_dispute(fake_dispute_id, fake_dispute_data, ai_recommendation)
-        return {"message": "Test dispute generated and saved to database!", "id": fake_dispute_id}
+        return {"message": "Test dispute generated and saved!", "id": fake_dispute_id}
     except Exception as e:
         return {"error": str(e)}
