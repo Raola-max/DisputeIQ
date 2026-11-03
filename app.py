@@ -1,6 +1,7 @@
 import streamlit as st
 import httpx
 import json
+import time
 
 
 st.set_page_config(page_title="DisputeIQ | PayPal AI", page_icon="🛡️", layout="wide")
@@ -16,41 +17,61 @@ with st.sidebar:
     st.divider()
     st.markdown("**Merchant:** Raola Store")
     st.markdown("**Sandbox Mode:** Active 🟢")
+    st.divider()
+    
+
+    if st.button("🔄 Refresh Data & Wake Backend"):
+        st.rerun()
+        
+    st.caption(f"Connected to: {BACKEND_URL}")
 
 
 st.title("🛡️ DisputeIQ Dashboard")
 st.markdown("Review AI-recommended actions for incoming PayPal disputes. Save time, recover revenue.")
 
 
-try:
-    response = httpx.get(f"{BACKEND_URL}/disputes", timeout=30.0)
-    disputes = response.json()
-except Exception as e:
-    st.error(f"Could not connect to backend at {BACKEND_URL}. Error: {e}")
-    disputes = []
+disputes = []
 
-
-if disputes is None:
-    disputes = []
+with st.spinner("Connecting to backend (Render may take up to 60 seconds to wake up)..."):
+    try:
+        
+        response = httpx.get(f"{BACKEND_URL}/disputes", timeout=60.0)
+        
+        if response.status_code == 200:
+            data = response.json()
+            if isinstance(data, list):
+                disputes = data
+            else:
+                st.warning(f"Backend returned unexpected format. Data: {data}")
+        else:
+            st.error(f"Backend returned HTTP {response.status_code}. Check Render logs.")
+            
+    except httpx.ReadTimeout:
+        st.error("⏱️ Connection timed out. Render is taking too long to wake up. Please click the 'Refresh Data' button in the sidebar.")
+    except httpx.ConnectError:
+        st.error(f"🔌 Could not connect to backend at {BACKEND_URL}. Is the URL in your Streamlit Secrets correct?")
+    except Exception as e:
+        st.error(f"❌ An unexpected error occurred: {e}")
 
 
 col1, col2, col3 = st.columns(3)
-active_disputes = [d for d in disputes if d["status"] != "RESOLVED"]
+active_disputes = [d for d in disputes if d.get("status") != "RESOLVED"]
 col1.metric(label="Active Disputes", value=len(active_disputes))
 col2.metric(label="AI Automation Rate", value="85%", delta="+12% this week")
 col3.metric(label="Revenue Protected", value="$1,450.00", delta="+$500 today")
 st.divider()
 
+
 if not disputes:
     st.info(f"No active disputes found. Go to `{BACKEND_URL}/seed` to simulate an incoming PayPal webhook.")
 else:
     for dispute in disputes:
-        d_id = dispute["id"]
-        data = dispute["data"]
-        ai_rec = dispute["ai_recommendation"]
-        status = dispute["status"]
+        d_id = dispute.get("id", "Unknown ID")
+        data = dispute.get("data", {})
+        ai_rec = dispute.get("ai_recommendation", "No recommendation generated.")
+        status = dispute.get("status", "UNKNOWN")
         
-        reason = data.get("reason", "UNKNOWN").replace("_", " ").title()
+        reason = str(data.get("reason", "UNKNOWN")).replace("_", " ").title()
         amount_data = data.get("dispute_amount", {})
         amount = amount_data.get("value", "0.00")
         
@@ -81,9 +102,14 @@ else:
                         with st.spinner("Calling PayPal Disputes API..."):
                             try:
                                 
-                                httpx.post(f"{BACKEND_URL}/resolve/{d_id}", timeout=30.0)
-                                st.success("Successfully resolved via PayPal!")
-                                st.rerun()
+                                time.sleep(1.5) 
+                                
+                                res = httpx.post(f"{BACKEND_URL}/resolve/{d_id}", timeout=30.0)
+                                if res.status_code == 200:
+                                    st.success("Successfully resolved via PayPal!")
+                                    st.rerun()
+                                else:
+                                    st.error(f"Failed to resolve. Backend said: {res.text}")
                             except Exception as e:
                                 st.error(f"Failed to resolve: {e}")
                 else:
