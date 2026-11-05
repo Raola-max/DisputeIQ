@@ -6,7 +6,6 @@ from datetime import datetime
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from google.api_core.exceptions import ServiceUnavailable
 import database
 
 
@@ -34,12 +33,16 @@ def analyze_dispute_with_retry(dispute_data, order_data, max_retries=3):
     for attempt in range(max_retries):
         try:
             return database.analyze_dispute(dispute_data, order_data)
-        except ServiceUnavailable as e:
-            if attempt == max_retries - 1:
+        except Exception as e:
+            error_str = str(e)
+            if "503" in error_str or "UNAVAILABLE" in error_str:
+                if attempt == max_retries - 1:
+                    raise e
+                print(f"Gemini overloaded (503). Retrying in {delay} seconds...")
+                time.sleep(delay)
+                delay *= 2  
+            else:
                 raise e
-            print(f"Gemini overloaded (503). Retrying in {delay} seconds...")
-            time.sleep(delay)
-            delay *= 2  
 
 
 @app.get("/health")
@@ -100,7 +103,7 @@ async def paypal_webhook(request: Request):
             
             order_data = {} 
             
-            print("Sending data to Gemini AI with ServiceUnavailable retry protection...")
+            print("Sending data to Gemini AI with retry protection...")
             ai_recommendation = analyze_dispute_with_retry(dispute_data, order_data)
             
             print("\n=== AI TRIAGE RESULT ===")
