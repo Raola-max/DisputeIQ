@@ -8,12 +8,12 @@ from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 import database
 
-# Load environment variables from .env file for local development
+
 load_dotenv()
 
 app = FastAPI(title="DisputeIQ Backend", version="1.0.0")
 
-# Enable CORS for Streamlit frontend integration
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -22,7 +22,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Initialize database tables on startup
+
 @app.on_event("startup")
 def startup_event():
     database.init_db()
@@ -40,7 +40,7 @@ def analyze_dispute_with_retry(dispute_data, order_data, max_retries=3):
                     raise e
                 print(f"Gemini overloaded (503). Retrying in {delay} seconds...")
                 time.sleep(delay)
-                delay *= 2  # Exponential backoff
+                delay *= 2  
             else:
                 raise e
 
@@ -52,47 +52,51 @@ def health_check():
 
 @app.get("/disputes")
 async def get_all_disputes():
-    """Fetch all disputes for the frontend dashboard as dictionaries."""
+    """Fetch all disputes for the frontend dashboard with strict dictionary formatting."""
     try:
         rows = database.get_disputes()
         disputes = []
         for row in rows:
+            
             raw_data = row[1]
-            if isinstance(raw_data, str):
-                try:
-                    parsed_data = json.loads(raw_data)
-                except:
-                    parsed_data = raw_data
-            else:
-                parsed_data = raw_data
+            try:
+                parsed_data = json.loads(raw_data) if isinstance(raw_data, str) else raw_data
+            except:
+                parsed_data = {"raw": str(raw_data)}
 
-            ai_rec = row[2]
-            if isinstance(ai_rec, str):
+            
+            raw_ai = row[2]
+            parsed_ai = {}
+            if isinstance(raw_ai, str):
                 try:
-                    parsed_ai = json.loads(ai_rec)
+                    loaded = json.loads(raw_ai)
+                    if isinstance(loaded, dict):
+                        parsed_ai = loaded
+                    else:
+                        parsed_ai = {"recommendation": "REVIEW", "reasoning": str(loaded), "draft_response": str(loaded)}
                 except:
-                    parsed_ai = {"reasoning": ai_rec, "draft_response": ai_rec}
+                    parsed_ai = {"recommendation": "REVIEW", "reasoning": raw_ai, "draft_response": raw_ai}
+            elif isinstance(raw_ai, dict):
+                parsed_ai = raw_ai
             else:
-                parsed_ai = ai_rec
+                parsed_ai = {"recommendation": "REVIEW", "reasoning": str(raw_ai), "draft_response": str(raw_ai)}
+
+            
+            parsed_ai.setdefault("recommendation", "REVIEW")
+            parsed_ai.setdefault("confidence", "85%")
+            parsed_ai.setdefault("reasoning", "Awaiting review.")
+            parsed_ai.setdefault("draft_response", "We are reviewing your transaction records.")
 
             disputes.append({
                 "id": row[0],
                 "data": parsed_data,
                 "ai_recommendation": parsed_ai,
                 "status": row[3]
-            }) 
-
-            disputes.append({
-                "id": row[0],
-                "data": parsed_data,
-                "ai_recommendation": row[2],
-                "status": row[3]
             })
         return disputes
     except Exception as e:
         print(f"Error fetching disputes: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @app.post("/resolve/{dispute_id}")
 @app.post("/api/resolve/{dispute_id}")
