@@ -66,6 +66,22 @@ async def get_all_disputes():
             else:
                 parsed_data = raw_data
 
+            ai_rec = row[2]
+            if isinstance(ai_rec, str):
+                try:
+                    parsed_ai = json.loads(ai_rec)
+                except:
+                    parsed_ai = {"reasoning": ai_rec, "draft_response": ai_rec}
+            else:
+                parsed_ai = ai_rec
+
+            disputes.append({
+                "id": row[0],
+                "data": parsed_data,
+                "ai_recommendation": parsed_ai,
+                "status": row[3]
+            }) 
+
             disputes.append({
                 "id": row[0],
                 "data": parsed_data,
