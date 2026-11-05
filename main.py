@@ -8,12 +8,12 @@ from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 import database
 
-
+# Load environment variables from .env file for local development
 load_dotenv()
 
 app = FastAPI(title="DisputeIQ Backend", version="1.0.0")
 
-
+# Enable CORS for Streamlit frontend integration
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -22,7 +22,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-
+# Initialize database tables on startup
 @app.on_event("startup")
 def startup_event():
     database.init_db()
@@ -40,7 +40,7 @@ def analyze_dispute_with_retry(dispute_data, order_data, max_retries=3):
                     raise e
                 print(f"Gemini overloaded (503). Retrying in {delay} seconds...")
                 time.sleep(delay)
-                delay *= 2  
+                delay *= 2  # Exponential backoff
             else:
                 raise e
 
