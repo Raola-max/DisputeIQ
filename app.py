@@ -5,12 +5,17 @@ import time
 import os
 from dotenv import load_dotenv
 
-
 load_dotenv()
 
 st.set_page_config(page_title="DisputeIQ | PayPal AI", page_icon="🛡️", layout="wide")
 
-BACKEND_URL = os.getenv("BACKEND_URL") or st.secrets.get("BACKEND_URL", "http://localhost:8000")
+
+BACKEND_URL = os.getenv("BACKEND_URL")
+if not BACKEND_URL:
+    try:
+        BACKEND_URL = st.secrets["BACKEND_URL"]
+    except Exception:
+        BACKEND_URL = "http://localhost:8000"
 
 with st.sidebar:
     st.image("https://upload.wikimedia.org/wikipedia/commons/b/b5/PayPal.svg", width=150)
@@ -42,12 +47,12 @@ with st.spinner("Connecting to backend (Render may take up to 60 seconds to wake
             else:
                 st.warning(f"Backend returned unexpected format. Data: {data}")
         else:
-            st.error(f"Backend returned HTTP {response.status_code}. Check Render logs.")
+            st.error(f"Backend returned HTTP {response.status_code}. Check backend logs.")
             
     except httpx.ReadTimeout:
-        st.error("⏱️ Connection timed out. Render is taking too long to wake up. Please click the 'Refresh Data' button in the sidebar.")
+        st.error("⏱️ Connection timed out. The backend is taking too long to wake up. Please click the 'Refresh Data' button in the sidebar.")
     except httpx.ConnectError:
-        st.error(f"🔌 Could not connect to backend at {BACKEND_URL}. Is the URL in your Streamlit Secrets correct?")
+        st.error(f"🔌 Could not connect to backend at {BACKEND_URL}. Is your FastAPI server running?")
     except Exception as e:
         st.error(f"❌ An unexpected error occurred: {e}")
 
@@ -59,7 +64,7 @@ col3.metric(label="Revenue Protected", value="$1,450.00", delta="+$500 today")
 st.divider()
 
 if not disputes:
-    st.info(f"No active disputes found. Go to `{BACKEND_URL}/seed` to simulate an incoming PayPal webhook.")
+    st.info(f"No active disputes found. Open `http://localhost:8000/seed` in your browser to simulate an incoming PayPal webhook.")
 else:
     for dispute in disputes:
         d_id = dispute.get("id", "Unknown ID")
@@ -67,7 +72,7 @@ else:
         ai_rec_raw = dispute.get("ai_recommendation", "{}")
         status = dispute.get("status", "UNKNOWN")
         
-        # Try parsing structured AI response if it's JSON
+        
         try:
             ai_data = json.loads(ai_rec_raw) if isinstance(ai_rec_raw, str) else {}
         except:
