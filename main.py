@@ -79,10 +79,16 @@ async def get_all_disputes():
 
 
 @app.post("/resolve")
+@app.post("/disputes/resolve")
+@app.post("/api/resolve")
 async def resolve_dispute(request: Request):
     """Endpoint for Streamlit frontend to update dispute resolution status."""
     try:
-        body = await request.json()
+        try:
+            body = await request.json()
+        except Exception:
+            body = {}
+            
         dispute_id = body.get("dispute_id") or body.get("id")
         action = body.get("action", "RESOLVED")
         
@@ -95,7 +101,6 @@ async def resolve_dispute(request: Request):
     except Exception as e:
         print(f"Error resolving dispute: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @app.get("/seed")
 def seed_disputes():
