@@ -52,15 +52,32 @@ def health_check():
 
 @app.get("/disputes")
 async def get_all_disputes():
-    """Fetch all disputes for the frontend dashboard."""
+    """Fetch all disputes for the frontend dashboard as dictionaries."""
     try:
-        disputes = database.get_disputes()
+        rows = database.get_disputes()
+        disputes = []
+        for row in rows:
+        
+            raw_data = row[1]
+            if isinstance(raw_data, str):
+                try:
+                    parsed_data = json.loads(raw_data)
+                except:
+                    parsed_data = raw_data
+            else:
+                parsed_data = raw_data
+
+            disputes.append({
+                "id": row[0],
+                "data": parsed_data,
+                "ai_recommendation": row[2],
+                "status": row[3]
+            })
         return disputes
     except Exception as e:
         print(f"Error fetching disputes: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-
-
+    
 @app.get("/seed")
 def seed_disputes():
     """Seed test disputes into the database with Gemini AI triage."""
