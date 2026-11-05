@@ -78,30 +78,25 @@ async def get_all_disputes():
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/resolve")
-@app.post("/disputes/resolve")
-@app.post("/api/resolve")
-async def resolve_dispute(request: Request):
-    """Endpoint for Streamlit frontend to update dispute resolution status."""
+@app.post("/resolve/{dispute_id}")
+@app.post("/api/resolve/{dispute_id}")
+async def resolve_dispute_by_path(dispute_id: str, request: Request = None):
+    """Endpoint for Streamlit frontend when dispute ID is passed in the URL path."""
     try:
-        try:
-            body = await request.json()
-        except Exception:
-            body = {}
-            
-        dispute_id = body.get("dispute_id") or body.get("id")
-        action = body.get("action", "RESOLVED")
-        
-        if not dispute_id:
-            raise HTTPException(status_code=400, detail="Dispute ID missing in request body")
-        
+        action = "RESOLVED"
+        if request:
+            try:
+                body = await request.json()
+                action = body.get("action", "RESOLVED")
+            except Exception:
+                pass
+                
         database.update_status(dispute_id, action)
         print(f"Dispute {dispute_id} updated to status: {action}")
         return {"status": "success", "message": f"Dispute {dispute_id} successfully updated."}
     except Exception as e:
         print(f"Error resolving dispute: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-
 @app.get("/seed")
 def seed_disputes():
     """Seed test disputes into the database with Gemini AI triage."""
