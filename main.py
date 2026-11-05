@@ -4,6 +4,7 @@ from ai_agent import analyze_dispute
 import database
 import json
 import time
+import traceback
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -18,13 +19,19 @@ async def root():
 async def health():
     try:
         token = await get_access_token()
-        return {"paypal_auth": "ok", "token_preview": token[:20] + "..."}
+        return {"paypal_auth": "ok", "token_preview": token[:20] + "..." if token else "empty"}
     except Exception as e:
+        traceback.print_exc()
         return {"paypal_auth": "failed", "error": str(e)}
 
 @app.post("/webhook/paypal")
 async def paypal_webhook(request: Request):
-    body = await request.json()
+    try:
+        body = await request.json()
+    except Exception as e:
+        print(f"Failed to parse incoming webhook JSON: {e}")
+        raise HTTPException(status_code=400, detail="Invalid JSON payload")
+
     event_type = body.get("event_type", "unknown")
     resource = body.get("resource", {})
     
@@ -32,17 +39,20 @@ async def paypal_webhook(request: Request):
 
     if event_type == "CUSTOMER.DISPUTE.CREATED":
         dispute_id = resource.get("dispute_id")
+        if not dispute_id:
+            print("Error: Dispute ID missing in webhook resource payload.")
+            return {"received": True, "warning": "Dispute ID missing"}
+
         print(f"Fetching dispute details for: {dispute_id}")
         
         try:
-            
-            if "PP-000" in dispute_id:
+            if "PP-000" in dispute_id or "PP-D-" in dispute_id:
                 dispute_data = resource
-                print("Mock ID detected. Using raw webhook data.")
+                print("Mock or Test ID detected. Using raw webhook data.")
             else:
                 dispute_data = await paypal_get(f"/v1/customer/disputes/{dispute_id}")
             
-            order_data = {}
+            order_data = {} 
             
             print("Sending data to Gemini AI...")
             ai_recommendation = analyze_dispute(dispute_data, order_data)
@@ -55,24 +65,29 @@ async def paypal_webhook(request: Request):
             print(f"Saved dispute {dispute_id} to database.")
 
         except Exception as e:
-            print(f"Error processing dispute: {str(e)}")
+            print(f"Error processing dispute {dispute_id}: {str(e)}")
+            traceback.print_exc()
 
     return {"received": True}
 
 @app.get("/disputes")
 async def get_all_disputes():
-    """Fetch all disputes for the Streamlit frontend."""
-    disputes = database.get_disputes()
-    result = []
-    if disputes:
-        for d in disputes:
-            result.append({
-                "id": d[0],
-                "data": json.loads(d[1]),
-                "ai_recommendation": d[2],
-                "status": d[3]
-            })
-    return result
+    """Fetch all disputes for the frontend."""
+    try:
+        disputes = database.get_disputes()
+        result = []
+        if disputes:
+            for d in disputes:
+                result.append({
+                    "id": d[0],
+                    "data": json.loads(d[1]) if isinstance(d[1], str) else d[1],
+                    "ai_recommendation": d[2],
+                    "status": d[3]
+                })
+        return result
+    except Exception as e:
+        print(f"Error fetching disputes: {e}")
+        return []
 
 @app.post("/resolve/{dispute_id}")
 async def resolve_dispute(dispute_id: str):
@@ -102,8 +117,8 @@ async def seed_data():
     try:
         print("Sending mock data to Gemini AI...")
         ai_recommendation = analyze_dispute(fake_dispute_data, {"status": "SHIPPED", "tracking": "1Z999AA10123456784"})
-        
         database.save_dispute(fake_dispute_id, fake_dispute_data, ai_recommendation)
         return {"message": "Test dispute generated and saved!", "id": fake_dispute_id}
     except Exception as e:
+        traceback.print_exc()
         return {"error": str(e)}
