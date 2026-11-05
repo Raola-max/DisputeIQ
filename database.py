@@ -13,7 +13,6 @@ def init_db():
 def save_dispute(dispute_id, data, ai_rec):
     conn = sqlite3.connect('disputes.db')
     c = conn.cursor()
-    # We use INSERT OR REPLACE so if a webhook fires twice, it updates instead of crashing
     c.execute("INSERT OR REPLACE INTO disputes (id, data, ai_recommendation, status) VALUES (?, ?, ?, ?)",
               (dispute_id, json.dumps(data), ai_rec, "PENDING"))
     conn.commit()
@@ -34,5 +33,16 @@ def update_status(dispute_id, new_status):
     conn.commit()
     conn.close()
 
-# Initialize the DB when this file is imported
+def seed_sample_disputes():
+    """Seed sample test disputes into the database."""
+    sample_id = "PP-D-101"
+    sample_data = {
+        "dispute_id": sample_id,
+        "reason": "MERCHANDISE_OR_SERVICE_NOT_RECEIVED",
+        "dispute_amount": {"value": "150.00", "currency_code": "USD"}
+    }
+    sample_rec = "Recommendation: Accept dispute. Tracking info shows delivery failure."
+    save_dispute(sample_id, sample_data, sample_rec)
+
+
 init_db()
