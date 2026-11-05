@@ -57,7 +57,6 @@ async def get_all_disputes():
         rows = database.get_disputes()
         disputes = []
         for row in rows:
-        
             raw_data = row[1]
             if isinstance(raw_data, str):
                 try:
@@ -77,7 +76,27 @@ async def get_all_disputes():
     except Exception as e:
         print(f"Error fetching disputes: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-    
+
+
+@app.post("/resolve")
+async def resolve_dispute(request: Request):
+    """Endpoint for Streamlit frontend to update dispute resolution status."""
+    try:
+        body = await request.json()
+        dispute_id = body.get("dispute_id") or body.get("id")
+        action = body.get("action", "RESOLVED")
+        
+        if not dispute_id:
+            raise HTTPException(status_code=400, detail="Dispute ID missing in request body")
+        
+        database.update_status(dispute_id, action)
+        print(f"Dispute {dispute_id} updated to status: {action}")
+        return {"status": "success", "message": f"Dispute {dispute_id} successfully updated."}
+    except Exception as e:
+        print(f"Error resolving dispute: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.get("/seed")
 def seed_disputes():
     """Seed test disputes into the database with Gemini AI triage."""
