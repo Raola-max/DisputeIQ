@@ -54,7 +54,7 @@ def health_check():
 async def get_all_disputes():
     """Fetch all disputes for the frontend dashboard."""
     try:
-        disputes = database.get_all_disputes()
+        disputes = database.get_disputes()
         return disputes
     except Exception as e:
         print(f"Error fetching disputes: {e}")
