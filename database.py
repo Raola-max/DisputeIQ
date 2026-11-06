@@ -14,6 +14,11 @@ def init_db():
     conn.close()
 
 def save_dispute(dispute_id, data, ai_rec):
+    if isinstance(data, dict):
+        data = json.dumps(data)
+    if isinstance(ai_rec, dict):
+        ai_rec = json.dumps(ai_rec)
+        
     conn = sqlite3.connect('disputes.db')
     c = conn.cursor()
     c.execute("INSERT OR REPLACE INTO disputes (id, data, ai_recommendation, status) VALUES (?, ?, ?, ?)",
