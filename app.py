@@ -2,7 +2,7 @@ import streamlit as st
 import requests
 import json
 
-# Backend API URL (pointing to your live Render deployment)
+
 BACKEND_URL = "https://disputeiq-5fxz.onrender.com"
 
 st.set_page_config(
@@ -11,7 +11,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# Custom CSS to make action buttons stand out in red
+
 st.markdown("""
     <style>
     div.stButton > button:first-child {
@@ -27,7 +27,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# Header Section
+
 st.title("🛡️ DisputeIQ Merchant Portal")
 st.markdown("Automated chargeback resolution powered by Gemini AI.")
 st.sidebar.markdown("### Merchant: Raola Store")
@@ -38,7 +38,7 @@ st.markdown("---")
 st.header("DisputeIQ Dashboard")
 st.markdown("Review AI-recommended actions for incoming PayPal disputes. Save time, recover revenue.")
 
-# Fetch disputes from backend
+
 try:
     response = requests.get(f"{BACKEND_URL}/disputes", timeout=10)
     if response.status_code == 200:
@@ -50,11 +50,13 @@ except Exception as e:
     disputes = []
     st.error(f"Could not connect to backend server: {e}")
 
-# Separate active and resolved disputes
+
 active_disputes = [d for d in disputes if str(d.get("status", "")).upper() != "RESOLVED"]
 resolved_disputes = [d for d in disputes if str(d.get("status", "")).upper() == "RESOLVED"]
 
-# Metrics Overview
+if st.button("🔄 Force Refresh Disputes"):
+    st.rerun()
+
 col1, col2, col3 = st.columns(3)
 with col1:
     st.metric("Active Disputes", len(active_disputes))
@@ -65,7 +67,7 @@ with col3:
 
 st.markdown("---")
 
-# Create Tabs for Active vs Resolved
+
 tab_active, tab_resolved = st.tabs([f"Active Disputes ({len(active_disputes)})", f"Resolved History ({len(resolved_disputes)})"])
 
 with tab_active:
